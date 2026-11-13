@@ -7,6 +7,7 @@ Hay una entrada por cada día trabajado. Las fechas coinciden con los commits de
 ## 2026-11-12 (jueves)
 
 - **Qué hice:**
+
 - **Problema encontrado:**
 - **Cómo lo resolví:**
 - **Tiempo dedicado:**
