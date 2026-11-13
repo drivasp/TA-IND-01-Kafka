@@ -1,0 +1,191 @@
+% ============================================================
+% TA-IND-01 — Informe Académico Individual
+% Análisis crítico de Apache Kafka frente a RabbitMQ
+% Compilar: pdflatex -> biber -> pdflatex -> pdflatex
+% ============================================================
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage{csquotes}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage[hidelinks]{hyperref}
+\usepackage[backend=biber,style=ieee]{biblatex}
+\addbibresource{referencias.bib}
+
+\graphicspath{{figuras/}{capturas/}{anexos/}}
+
+% ---------- Datos de la carátula ----------
+\newcommand{\estudiante}{Rivas Piloso Dayver Yahir}
+\newcommand{\paralelo}{Séptimo nivel -- Paralelo B}
+\newcommand{\fechaentrega}{15 de noviembre de 2026}
+\newcommand{\repo}{https://github.com/drivasp/TA-IND-01-Kafka}
+
+\begin{document}
+
+% ============================================================
+% 1. CARÁTULA
+% ============================================================
+\begin{titlepage}
+  \centering
+  \IfFileExists{figuras/logo_uteq.jpeg}{\includegraphics[width=0.28\textwidth]{logo_uteq.jpeg}\par\vspace{0.8cm}}{}
+  {\Large\bfseries UNIVERSIDAD TÉCNICA ESTATAL DE QUEVEDO\par}
+  \vspace{0.4cm}
+  {\large Facultad de Ciencias de la Computación\par}
+  {\large Carrera de Software\par}
+  \vspace{1cm}
+  {\large\bfseries Aplicaciones Distribuidas (ISR-701)\par}
+  \vspace{0.2cm}
+  {\paralelo\par}
+  \vspace{1cm}
+  {\large\bfseries TA-IND-01 --- Informe Académico Individual\par}
+  \vspace{0.2cm}
+  {\large Análisis crítico de Apache Kafka frente a RabbitMQ\par}
+  \vfill
+  \begin{tabular}{rl}
+    \textbf{Estudiante:} & \estudiante \\
+    \textbf{Docente:}    & Gleiston Cicerón Guerrero Ulloa, PhD \\
+    \textbf{Fecha:}      & \fechaentrega \\
+    \textbf{Periodo:}    & SPA 2026-2027 \\
+    \textbf{Repositorio:} & \url{\repo} \\
+  \end{tabular}
+  \vspace{1cm}
+\end{titlepage}
+
+% ============================================================
+% 2. RESUMEN (150 a 200 palabras)
+% ============================================================
+\begin{abstract}
+% Sistema analizado, enfoque y conclusiones principales.
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+
+% ============================================================
+% 3. INTRODUCCIÓN
+% ============================================================
+\section{Introducción}
+% Qué problema resuelve Kafka, quién lo usa, a qué escala y por qué se eligió.
+
+% ============================================================
+% 4. ARQUITECTURA DEL SISTEMA
+% ============================================================
+\section{Arquitectura del sistema}
+% Componentes (brokers, tópicos, particiones, réplicas, productores,
+% consumidores, controladores KRaft) y cómo se comunican.
+
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.9\textwidth]{arquitectura.png}
+%   \caption{Arquitectura de Apache Kafka (elaboración propia).}
+%   \label{fig:arquitectura}
+% \end{figure}
+% Evolución desde el esquema a mano: ver Anexo~\ref{anexo:a}.
+
+% ============================================================
+% 5. ANÁLISIS CON LOS CONCEPTOS DE LA UNIDAD 1
+% ============================================================
+\section{Análisis con los conceptos de la Unidad 1}
+
+\subsection{Transparencias de distribución}
+% Acceso, ubicación, migración, reubicación, replicación, concurrencia y fallos.
+% Cuáles ofrece y cuáles no, y por qué.
+
+\subsection{Teorema CAP y PACELC}
+% Qué prioriza con partición y qué prioriza sin partición. Con evidencia citada.
+
+\subsection{Modelos de comunicación}
+% Cliente-servidor, P2P o híbrido; síncrona o asíncrona; sockets, RPC o mensajería.
+
+\subsection{Tolerancia a fallos}
+% Qué fallos soporta, cómo los detecta y cómo se recupera. Incidente real documentado.
+
+% ============================================================
+% 6. EXPERIMENTACIÓN PROPIA
+% ============================================================
+\section{Experimentación propia}
+% Entorno, comandos (ver experimento/comandos.md), capturas e interpretación.
+
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.9\textwidth]{sistema/captura1.png}
+%   \caption{Clúster de tres brokers en ejecución.}
+% \end{figure}
+
+% ============================================================
+% 7. EJEMPLOS DEL ENTORNO DEL ESTUDIANTE
+% ============================================================
+\section{Ejemplos del entorno del estudiante}
+% Al menos dos sistemas reales usados de primera mano, relacionados con un concepto.
+
+% ============================================================
+% 8. ANÁLISIS COMPARATIVO
+% ============================================================
+\section{Análisis comparativo}
+
+\begin{table}[H]
+  \centering
+  \caption{Comparación entre Apache Kafka y RabbitMQ}
+  \label{tab:comparacion}
+  \begin{tabularx}{\textwidth}{@{}lXX@{}}
+    \toprule
+    \textbf{Criterio} & \textbf{Apache Kafka} & \textbf{RabbitMQ} \\
+    \midrule
+    Transparencias &  &  \\
+    CAP (con partición) &  &  \\
+    PACELC (sin partición) &  &  \\
+    Modelo de comunicación &  &  \\
+    Replicación &  &  \\
+    Detección y recuperación de fallos &  &  \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+% Discusión de la tabla.
+
+% ============================================================
+% 9. POSTURA CRÍTICA
+% ============================================================
+\section{Postura crítica}
+% Fortalezas, limitaciones, trade-offs y contextos en los que no sería la mejor opción.
+
+% ============================================================
+% 10. CONCLUSIONES
+% ============================================================
+\section{Conclusiones}
+
+% ============================================================
+% 11. DECLARACIÓN DE USO DE IA
+% ============================================================
+\section*{Declaración de uso de inteligencia artificial}
+\addcontentsline{toc}{section}{Declaración de uso de inteligencia artificial}
+% Herramienta, versión, para qué se usó y cómo se verificó; o declarar que no se usó.
+
+% ============================================================
+% 12. REFERENCIAS (IEEE, biblatex)
+% ============================================================
+\printbibliography[heading=bibintoc,title={Referencias}]
+
+% ============================================================
+% 13. ANEXOS
+% ============================================================
+\appendix
+\renewcommand{\thesection}{\Alph{section}}
+
+\section{Esquema inicial a mano}\label{anexo:a}
+% \includegraphics[width=0.8\textwidth]{esquema_mano.jpg}
+
+\section{Capturas de lectura de las fuentes}\label{anexo:b}
+% \includegraphics[width=0.9\textwidth]{fuentes/fuente1_p5.png}
+
+\end{document}
