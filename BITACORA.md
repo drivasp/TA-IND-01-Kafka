@@ -32,9 +32,23 @@ Aproximadamente 1 hora
 ## 2026-11-14 (sábado)
 
 - **Qué hice:**
+redacté la Sección 6 (Experimentación propia) con el entorno, las dos pruebas y la recuperación;
+revisé que el informe coincida con las capturas A, B y C y con experimento/resultados/06_describe_recuperado.txt (la partición 0 volvió a tener como líder al broker 3);
+agregué la referencia Wang2015 a referencias.bib y la cité en la Prueba 2;
+compilé el PDF y verifiqué que la cita salga como [1] y no como [?].
+
 - **Problema encontrado:**
+al principio guardé los cambios en una copia sin Git (carpeta "Tarea individual de Gleisston1") y no en el repositorio;
+mi equipo no tiene biber, así que la bibliografía no compilaba localmente;
+06_describe_recuperado.txt aparecía modificado solo por los saltos de línea de Windows.
+
 - **Cómo lo resolví:**
+pasé la Sección 6 y la referencia al repositorio real (Documentos\TA-IND-01-Kafka) y borré la copia;
+compilé el informe en otro entorno con biber;
+descarté el cambio de salto de línea con git restore.
+
 - **Tiempo dedicado:**
+[falta: tiempo]
 
 ---
 
