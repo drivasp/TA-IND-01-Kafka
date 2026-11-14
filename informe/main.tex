@@ -116,29 +116,19 @@
 \section{Experimentación propia}
 
 \subsection{Entorno y configuración}
-% Párrafo 1: describe tu entorno. Datos: Windows, Docker Desktop v4.99.0,
-% imagen apache/kafka:3.9.0, 3 brokers en modo KRaft (kafka1, kafka2, kafka3),
-% tópico "pedidos" con 3 particiones, factor de réplica 3,
-% min.insync.replicas=2 y productor con acks=all.
-% Explica en una frase qué significa cada parámetro y por qué los elegiste.
-% Los comandos completos están en experimento/comandos.md (cítalo).
+El experimento se montó en Windows con Docker Desktop v4.99.0 y la imagen oficial \texttt{apache/kafka:3.9.0}. Se configuró un clúster de tres nodos (\texttt{kafka1}, \texttt{kafka2} y \texttt{kafka3}) en modo KRaft, sin Apache ZooKeeper. Sobre ese clúster se creó el tópico \texttt{pedidos} con tres particiones y factor de replicación 3 (\texttt{replication.factor=3}). Se fijó un mínimo de 2 réplicas sincronizadas (\texttt{min.insync.replicas=2}) y el productor se configuró con confirmación total (\texttt{acks=all}). Con estos parámetros, cada escritura debe quedar confirmada en al menos dos réplicas antes de responder al cliente, así que la caída de un nodo no provoca pérdida de mensajes confirmados. Los comandos y archivos de configuración usados están en \texttt{experimento/comandos.md}.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.95\textwidth]{sistema/capturaA_topico_estado_inicial.png}
-  \caption{Estado inicial del tópico \texttt{pedidos}: cada partición con un líder distinto e ISR completo.}
+  \caption{Estado inicial del tópico \texttt{pedidos}: distribución de liderazgo y conjunto ISR completo.}
   \label{fig:capA}
 \end{figure}
 
 \subsection{Prueba 1: caída del líder}
-% Párrafo 2: qué hiciste. Detuviste kafka3, líder de la partición 0
-% (Figura~\ref{fig:capA}).
-% Párrafo 3: qué observaste en la Figura~\ref{fig:capB}: nuevo líder (broker 1),
-% ISR de 3 a 2 réplicas, pedido-4 aceptado, consumidor leyó 4 mensajes.
-% Párrafo 4: interpretación con conceptos de la Unidad 1:
-%   - Tolerancia a fallos: ¿qué mecanismo permitió seguir? (réplicas + elección de líder)
-%   - Transparencia de fallos: ¿el cliente tuvo que saber que kafka3 cayó?
-%   - ¿Por qué pedido-4 SÍ se aceptó? (relaciona ISR=2 con min.insync=2)
+Para probar el comportamiento ante la caída de un nodo, se detuvo el contenedor \texttt{kafka3}, que era el líder de la partición 0 en el estado inicial (Figura~\ref{fig:capA}). Tras la desconexión, el controlador KRaft promovió al broker 1 (\texttt{kafka1}) como nuevo líder de esa partición, y el conjunto de réplicas sincronizadas (ISR) bajó de 3 a 2 nodos en todas las particiones. Luego se publicó el mensaje \texttt{pedido-4}: la escritura se aceptó y el consumidor recuperó los 4 mensajes acumulados sin pérdida de información (Figura~\ref{fig:capB}).
+
+Con los conceptos de la Unidad 1, este resultado muestra tolerancia a fallos por replicación activa y reelección automática del líder. También muestra transparencia de ubicación y de fallos parcial: los clientes se conectaron a \texttt{kafka1} y siguieron operando sin intervención manual y sin saber qué broker tenía el liderazgo. La escritura de \texttt{pedido-4} no se bloqueó porque las 2 réplicas que quedaban en el ISR cumplían el mínimo de \texttt{min.insync.replicas=2}.
 
 \begin{figure}[H]
   \centering
@@ -148,12 +138,9 @@
 \end{figure}
 
 \subsection{Prueba 2: pérdida del quórum de réplicas}
-% Párrafo 5: qué hiciste. Detuviste kafka2; solo quedó kafka1.
-% Párrafo 6: qué observaste en la Figura~\ref{fig:capC}: 3 reintentos,
-% NOT_ENOUGH_REPLICAS, NotEnoughReplicasException.
-% Párrafo 7: interpretación CAP: ante el fallo, ¿Kafka eligió C o A? ¿Por qué?
-% ¿Qué pasaría si min.insync.replicas fuera 1? (pregunta típica del profe)
-% Cita al menos una fuente que respalde cómo Kafka maneja el ISR.
+Después, con \texttt{kafka3} todavía detenido, se detuvo también \texttt{kafka2} y quedó activo solo \texttt{kafka1}. Al intentar enviar el mensaje \texttt{pedido-5}, el productor agotó sus reintentos tras recibir tres respuestas de error seguidas y rechazó la escritura con el error \texttt{NOT\_ENOUGH\_REPLICAS} (\texttt{NotEnoughReplicasException}), como se ve en la Figura~\ref{fig:capC}\footnote{Las marcas de tiempo de los registros muestran las 22:20 porque el contenedor usa horario UTC; equivale a las 17:20 en hora local de Ecuador (UTC$-5$).}.
+
+El error indica que las réplicas sincronizadas bajaron del mínimo de 2 exigido por la configuración. Además, con solo 1 de 3 nodos activos se perdió la mayoría del quórum de votantes KRaft. En términos del teorema CAP, el sistema priorizó la consistencia (C) y la durabilidad de los mensajes confirmados por encima de la disponibilidad (A) en escritura: Kafka rechazó la petición en lugar de confirmar un dato guardado en una sola réplica, que se perdería si ese nodo fallara. Si \texttt{min.insync.replicas} estuviera en 1, el clúster habría aceptado \texttt{pedido-5} a favor de la disponibilidad, con el riesgo de perder el mensaje si \texttt{kafka1} fallaba antes de replicarlo~\cite{Wang2015}.
 
 \begin{figure}[H]
   \centering
@@ -161,14 +148,9 @@
   \caption{Con un solo broker activo, la escritura de \texttt{pedido-5} se rechaza con \texttt{NOT\_ENOUGH\_REPLICAS}.}
   \label{fig:capC}
 \end{figure}
-% Nota al pie: usa \footnote{...} para explicar que los logs muestran 22:20
-% porque el contenedor usa UTC y tu equipo está en hora de Ecuador (UTC-5).
 
 \subsection{Recuperación}
-% Párrafo 8: reiniciaste kafka2 y kafka3; el ISR volvió a 3
-% (resultados/06_describe_recuperado.txt).
-% Párrafo 9: cierra con lo que aprendiste. Ejemplo de idea propia: el costo de
-% la consistencia fue perder la escritura cuando quedó un solo nodo.
+Por último, se reiniciaron los contenedores \texttt{kafka2} y \texttt{kafka3}. El clúster replicó los registros pendientes, el ISR volvió a tener 3 nodos en todas las particiones y el liderazgo de la partición 0 regresó a su líder preferido original (broker 3), como se ve en \texttt{experimento/resultados/06\_describe\_recuperado.txt}. El ciclo completo muestra el compromiso de diseño de esta configuración: para asegurar la durabilidad de los datos, Kafka bloquea las escrituras mientras los nodos activos estén por debajo del umbral definido.
 
 % ============================================================
 % 7. EJEMPLOS DEL ENTORNO DEL ESTUDIANTE
