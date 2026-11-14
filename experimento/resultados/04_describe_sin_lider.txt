@@ -1,0 +1,13 @@
+# Transcripción de la salida mostrada en informe/capturas/sistema/capturaB_caida_lider_kafka3.png
+# (sábado 14/11/2026 17:19:01). La salida original no se guardó en archivo porque los
+# comandos se ejecutaron desde C:\Windows\system32, donde no existe la carpeta resultados.
+# Comando: docker stop kafka3; docker exec kafka1 kafka-topics.sh --describe --topic pedidos
+
+Topic: pedidos  TopicId: 8hmwRJwSQ2iGi6A9y1HZng PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=2
+        Topic: pedidos  Partition: 0    Leader: 1       Replicas: 3,1,2 Isr: 1,2
+        Topic: pedidos  Partition: 1    Leader: 1       Replicas: 1,2,3 Isr: 1,2
+        Topic: pedidos  Partition: 2    Leader: 2       Replicas: 2,3,1 Isr: 2,1
+
+# Producción de "pedido-4" con acks=all: aceptada.
+# Consumo desde kafka1 (--from-beginning): pedido-4, pedido-1, pedido-2, pedido-3
+# Processed a total of 4 messages

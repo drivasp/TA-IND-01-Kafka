@@ -25,15 +25,7 @@ ejecuté wsl --install como administrador;
 dejé el resto para el viernes.
 
 - **Tiempo dedicado:**
-Aproximadamente 1 hora 
----
-
-## 2026-11-13 (viernes)
-
-- **Qué hice:**
-- **Problema encontrado:**
-- **Cómo lo resolví:**
-- **Tiempo dedicado:**
+Aproximadamente 1 hora
 
 ---
 

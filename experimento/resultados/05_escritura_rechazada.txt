@@ -1,0 +1,11 @@
+# Transcripción de la salida mostrada en informe/capturas/sistema/capturaC_escritura_rechazada_not_enough_replicas.png
+# (sábado 14/11/2026 17:20:22). La salida original no se guardó en archivo porque los
+# comandos se ejecutaron desde C:\Windows\system32, donde no existe la carpeta resultados.
+# Estado: kafka3 y kafka2 detenidos; solo kafka1 activo. Producción de "pedido-5" con acks=all.
+# (Las horas del log de Kafka están en UTC: 22:20 UTC = 17:20 en Ecuador.)
+
+WARN [Producer clientId=console-producer] Got error produce response with correlation id 5 on topic-partition pedidos-0, retrying (2 attempts left). Error: NOT_ENOUGH_REPLICAS
+WARN [Producer clientId=console-producer] Got error produce response with correlation id 6 on topic-partition pedidos-0, retrying (1 attempts left). Error: NOT_ENOUGH_REPLICAS
+WARN [Producer clientId=console-producer] Got error produce response with correlation id 7 on topic-partition pedidos-0, retrying (0 attempts left). Error: NOT_ENOUGH_REPLICAS
+ERROR Error when sending message to topic pedidos with key: null, value: 8 bytes with error: (org.apache.kafka.clients.producer.internals.ErrorLoggingCallback)
+org.apache.kafka.common.errors.NotEnoughReplicasException: Messages are rejected since there are fewer in-sync replicas than required.

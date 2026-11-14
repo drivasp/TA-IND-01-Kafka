@@ -114,13 +114,61 @@
 % 6. EXPERIMENTACIÓN PROPIA
 % ============================================================
 \section{Experimentación propia}
-% Entorno, comandos (ver experimento/comandos.md), capturas e interpretación.
 
-% \begin{figure}[H]
-%   \centering
-%   \includegraphics[width=0.9\textwidth]{sistema/captura1.png}
-%   \caption{Clúster de tres brokers en ejecución.}
-% \end{figure}
+\subsection{Entorno y configuración}
+% Párrafo 1: describe tu entorno. Datos: Windows, Docker Desktop v4.99.0,
+% imagen apache/kafka:3.9.0, 3 brokers en modo KRaft (kafka1, kafka2, kafka3),
+% tópico "pedidos" con 3 particiones, factor de réplica 3,
+% min.insync.replicas=2 y productor con acks=all.
+% Explica en una frase qué significa cada parámetro y por qué los elegiste.
+% Los comandos completos están en experimento/comandos.md (cítalo).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{sistema/capturaA_topico_estado_inicial.png}
+  \caption{Estado inicial del tópico \texttt{pedidos}: cada partición con un líder distinto e ISR completo.}
+  \label{fig:capA}
+\end{figure}
+
+\subsection{Prueba 1: caída del líder}
+% Párrafo 2: qué hiciste. Detuviste kafka3, líder de la partición 0
+% (Figura~\ref{fig:capA}).
+% Párrafo 3: qué observaste en la Figura~\ref{fig:capB}: nuevo líder (broker 1),
+% ISR de 3 a 2 réplicas, pedido-4 aceptado, consumidor leyó 4 mensajes.
+% Párrafo 4: interpretación con conceptos de la Unidad 1:
+%   - Tolerancia a fallos: ¿qué mecanismo permitió seguir? (réplicas + elección de líder)
+%   - Transparencia de fallos: ¿el cliente tuvo que saber que kafka3 cayó?
+%   - ¿Por qué pedido-4 SÍ se aceptó? (relaciona ISR=2 con min.insync=2)
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{sistema/capturaB_caida_lider_kafka3.png}
+  \caption{Tras detener \texttt{kafka3}, el broker 1 asume el liderazgo de la partición 0 y el ISR se reduce a dos réplicas.}
+  \label{fig:capB}
+\end{figure}
+
+\subsection{Prueba 2: pérdida del quórum de réplicas}
+% Párrafo 5: qué hiciste. Detuviste kafka2; solo quedó kafka1.
+% Párrafo 6: qué observaste en la Figura~\ref{fig:capC}: 3 reintentos,
+% NOT_ENOUGH_REPLICAS, NotEnoughReplicasException.
+% Párrafo 7: interpretación CAP: ante el fallo, ¿Kafka eligió C o A? ¿Por qué?
+% ¿Qué pasaría si min.insync.replicas fuera 1? (pregunta típica del profe)
+% Cita al menos una fuente que respalde cómo Kafka maneja el ISR.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{sistema/capturaC_escritura_rechazada_not_enough_replicas.png}
+  \caption{Con un solo broker activo, la escritura de \texttt{pedido-5} se rechaza con \texttt{NOT\_ENOUGH\_REPLICAS}.}
+  \label{fig:capC}
+\end{figure}
+% Nota al pie: usa \footnote{...} para explicar que los logs muestran 22:20
+% porque el contenedor usa UTC y tu equipo está en hora de Ecuador (UTC-5).
+
+\subsection{Recuperación}
+% Párrafo 8: reiniciaste kafka2 y kafka3; el ISR volvió a 3
+% (resultados/06_describe_recuperado.txt).
+% Párrafo 9: cierra con lo que aprendiste. Ejemplo de idea propia: el costo de
+% la consistencia fue perder la escritura cuando quedó un solo nodo.
 
 % ============================================================
 % 7. EJEMPLOS DEL ENTORNO DEL ESTUDIANTE
