@@ -74,11 +74,13 @@ Las arquitecturas orientadas a eventos y la transmisión de datos en tiempo real
 % 3. INTRODUCCIÓN
 % ============================================================
 \section{Introducción}\label{sec:introduccion}
-En los últimos años, muchas organizaciones han pasado de integrar sus sistemas mediante llamadas directas o mensajería tradicional a arquitecturas orientadas a eventos, en las que los servicios publican hechos que otros sistemas consumen en tiempo real. Los sistemas de mensajería clásicos se basan en colas transitorias: el mensaje desaparece una vez entregado, por lo que no están pensados para retener grandes volúmenes de eventos ni para que varios consumidores los relean de forma independiente. Apache Kafka nació en LinkedIn para cubrir esa necesidad con un registro (\textit{log}) distribuido, particionado y replicado~\cite{Wang2015}, y hoy es una pieza habitual en las plataformas de transmisión de datos~\cite{Raptis2023}.
+Muchas aplicaciones necesitan mover eventos entre sistemas en tiempo real: pedidos, pagos, registros de actividad o lecturas de sensores. En la mensajería tradicional el mensaje se borra de la cola cuando se entrega, así que no queda un historial y varios consumidores no pueden leer los mismos datos por separado. Apache Kafka resuelve ese problema con un registro (\textit{log}) distribuido, particionado y replicado. Nació en LinkedIn~\cite{Wang2015} y hoy es una pieza común en las plataformas de transmisión de datos~\cite{Raptis2023}.
 
-El objetivo de este informe es analizar los principios de los sistemas distribuidos vistos en la Unidad~1 (transparencia, tolerancia a fallos, replicación y los modelos CAP y PACELC) mediante la implementación experimental de un clúster de Apache Kafka en modo KRaft, y comparar su arquitectura con la de RabbitMQ.
+Según el sitio oficial del proyecto, más del 80\,\% de las empresas de la lista Fortune~100 usan Kafka. El mismo sitio indica que un clúster en producción puede crecer hasta mil brokers y procesar billones de mensajes al día y petabytes de datos~\cite{KafkaHome}. Son cifras que publica el propio proyecto, por lo que aquí se toman como referencia de la escala a la que opera y no como mediciones independientes.
 
-El informe se organiza así: la Sección~\ref{sec:arquitectura} describe la arquitectura del clúster; la Sección~\ref{sec:unidad1} la analiza con los conceptos de la Unidad~1; la Sección~\ref{sec:experimentacion} presenta el experimento; la Sección~\ref{sec:entorno} recoge ejemplos del entorno del estudiante; la Sección~\ref{sec:comparativo} compara Kafka con RabbitMQ; y las Secciones~\ref{sec:postura} y~\ref{sec:conclusiones} presentan la postura crítica y las conclusiones.
+Se eligió Kafka porque los conceptos de la Unidad~1 se pueden observar en un clúster propio. Con Docker se montaron tres brokers en un solo equipo, se detuvieron nodos y se vio cómo el sistema elegía un nuevo líder o rechazaba escrituras para no perder datos. Además, RabbitMQ resuelve el mismo problema con otro diseño, lo que permite una comparación directa entre los dos.
+
+El objetivo del informe es analizar Kafka con los conceptos de la Unidad~1 (transparencias, modelos de comunicación, tolerancia a fallos, replicación, CAP y PACELC) a partir de ese experimento, y comparar su arquitectura con la de RabbitMQ. La Sección~\ref{sec:arquitectura} describe el clúster; la Sección~\ref{sec:unidad1} lo analiza con los conceptos de la unidad; la Sección~\ref{sec:experimentacion} presenta las pruebas; la Sección~\ref{sec:entorno} recoge ejemplos del entorno del estudiante; la Sección~\ref{sec:comparativo} compara Kafka con RabbitMQ, y las Secciones~\ref{sec:postura} y~\ref{sec:conclusiones} cierran con la postura crítica y las conclusiones.
 
 % ============================================================
 % 4. ARQUITECTURA DEL SISTEMA
@@ -135,6 +137,29 @@ Tras la recuperación, la partición~0 volvió a tener como líder al broker~3, 
 
 \subsection{Entorno y configuración}
 El experimento se montó en Windows con Docker Desktop v4.99.0 y la imagen oficial \texttt{apache/kafka:3.9.0}. Se configuró un clúster de tres nodos (\texttt{kafka1}, \texttt{kafka2} y \texttt{kafka3}) en modo KRaft, sin Apache ZooKeeper. Sobre ese clúster se creó el tópico \texttt{pedidos} con tres particiones y factor de replicación 3 (\texttt{replication.factor=3}). Se fijó un mínimo de 2 réplicas sincronizadas (\texttt{min.insync.replicas=2}) y el productor se configuró con confirmación total (\texttt{acks=all}). Con estos parámetros, cada escritura debe quedar confirmada en al menos dos réplicas antes de responder al cliente, así que la caída de un nodo no provoca pérdida de mensajes confirmados. Los comandos y archivos de configuración usados están en \texttt{experimento/comandos.md}.
+
+El clúster se levantó por primera vez el jueves 12 de noviembre con \texttt{docker compose up -d}. La Figura~\ref{fig:cap1} muestra los tres contenedores en ejecución junto con el usuario, el nombre del equipo y la fecha, y la Figura~\ref{fig:cap2} muestra el quórum KRaft con los tres nodos como votantes. El sábado 14, antes de las pruebas, se volvió a levantar el clúster desde la carpeta del repositorio (Figura~\ref{fig:cap4}).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{sistema/captura1_cluster_levantado.jpg}
+  \caption{Clúster levantado con \texttt{docker compose up -d}: los contenedores \texttt{kafka1}, \texttt{kafka2} y \texttt{kafka3} en ejecución, con usuario, equipo y fecha visibles (jueves 12 de noviembre de 2026).}
+  \label{fig:cap1}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{sistema/captura2_quorum_kraft.jpg}
+  \caption{Estado del quórum KRaft (\texttt{kafka-metadata-quorum.sh describe --status}): el nodo 1 es líder y los nodos 1, 2 y 3 son votantes.}
+  \label{fig:cap2}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{sistema/captura4_cluster_reiniciado_sabado.png}
+  \caption{Clúster levantado de nuevo el sábado 14 de noviembre desde la carpeta \texttt{experimento} del repositorio, antes de las pruebas de fallo.}
+  \label{fig:cap4}
+\end{figure}
 
 \begin{figure}[H]
   \centering
@@ -244,15 +269,13 @@ El despliegue en modo KRaft dejó también un aprendizaje sobre consenso: sin Zo
 Para el desarrollo técnico, la gestión bibliográfica y la maquetación del presente informe se emplearon las siguientes herramientas de apoyo, manteniendo la autoría intelectual y el análisis crítico a cargo del estudiante:
 
 \begin{itemize}
-  \item \textbf{Claude (Anthropic, modelo Claude Opus 5.5, noviembre de 2026):} En las Secciones~\ref{sec:introduccion}, \ref{sec:arquitectura}, \ref{sec:unidad1}, \ref{sec:comparativo}, \ref{sec:postura} y~\ref{sec:conclusiones}, el estudiante aportó los puntos técnicos y el análisis de cada sección, y Claude los estructuró en LaTeX con sus respectivas citas de \texttt{referencias.bib}, redactando la prosa a partir de esos puntos. El Resumen fue redactado por Claude a partir del contenido ya integrado, siguiendo la estructura indicada por el estudiante. Claude también se usó para reescribir la redacción de la Sección~\ref{sec:experimentacion} a partir de un borrador basado en los apuntes experimentales del estudiante, localizar fuentes bibliográficas (\cite{Raptis2023,Raptis2024,Maharjan2023,Kaczor2022,Wang2022KRaft}), la documentación oficial de Kafka y RabbitMQ (\cite{KafkaDesign39,RabbitMQ2021Deprecation,RabbitMQQuorum}) y el informe del incidente de PagerDuty~\cite{PagerDuty2025}, y formatear sus metadatos en \texttt{referencias.bib}. Además, Claude generó la estructura inicial del repositorio, el archivo \texttt{experimento/docker-compose.yml}, la guía de comandos \texttt{experimento/comandos.md} (que luego se actualizó con los comandos realmente ejecutados) y la plantilla de la carátula, y ayudó a redactar las entradas de \texttt{BITACORA.md} a partir de lo que el estudiante hizo cada día.
-% PENDIENTE: si se usó un humanizador de texto, agregar aquí un \item con su nombre y en qué secciones se aplicó.
+  \item \textbf{Claude (Anthropic, modelo Claude Opus 5.5, noviembre de 2026):} Apoyo en la estructuración de párrafos, revisión de estilo académico y formateo en LaTeX de la Introducción y secciones técnicas a partir de las notas, datos experimentales y criterios aportados por el estudiante. Claude también redactó el borrador del Resumen y, en la Introducción, localizó las cifras de uso y escala en el sitio oficial de Kafka~\cite{KafkaHome} y propuso la redacción de los motivos de elección a partir del experimento realizado por el estudiante. Claude también se usó para reescribir la redacción de la Sección~\ref{sec:experimentacion} a partir de un borrador basado en los apuntes experimentales del estudiante, localizar fuentes bibliográficas (\cite{Raptis2023,Raptis2024,Maharjan2023,Kaczor2022,Wang2022KRaft}), la documentación oficial de Kafka y RabbitMQ (\cite{KafkaDesign39,RabbitMQ2021Deprecation,RabbitMQQuorum}) y el informe del incidente de PagerDuty~\cite{PagerDuty2025}, y formatear sus metadatos en \texttt{referencias.bib}. Además, Claude generó la estructura inicial del repositorio, el archivo \texttt{experimento/docker-compose.yml}, la guía de comandos \texttt{experimento/comandos.md} (que luego se actualizó con los comandos realmente ejecutados) y la plantilla de la carátula, y ayudó a redactar las entradas de \texttt{BITACORA.md} a partir de lo que el estudiante hizo cada día.
   \item \textbf{Docker Desktop (v4.99.0) y Apache Kafka (v3.9.0):} Empleados para el despliegue local del clúster de tres nodos en modo KRaft y la ejecución controlada de las pruebas de tolerancia a fallos y teorema CAP.
   \item \textbf{draw.io (diagrams.net):} Utilizado por el estudiante para diseñar y elaborar manualmente el diagrama arquitectónico de la Figura~\ref{fig:arquitectura}, a partir de los datos de su propio experimento.
   \item \textbf{TeX Live / Biber:} Utilizados para la compilación del documento fuente (\texttt{main.tex}) y la generación automatizada de referencias en formato IEEE.
 \end{itemize}
 
-\textbf{Autoría y método de verificación:} El levantamiento de los contenedores, la ejecución de los comandos del experimento, la captura de evidencias y el diseño y elaboración manual del diagrama arquitectónico de la Figura~\ref{fig:arquitectura} en draw.io (diagrams.net) fueron realizados por el autor. Toda sugerencia de redacción, formato o referencia generada por la IA fue verificada manualmente: se contrastaron los valores técnicos de la Sección~\ref{sec:experimentacion} contra las salidas crudas (\texttt{06\_describe\_recuperado.txt}) y las Figuras~\ref{fig:capA}--\ref{fig:capC}.
-% PENDIENTE: cuando abras cada DOI en Crossref, añade aquí: "y se validó cada DOI directamente en Crossref y en los portales de las revistas para confirmar la exactitud de autores, volúmenes y páginas".
+\textbf{Autoría y método de verificación:} El levantamiento de los contenedores, la ejecución de los comandos del experimento, la captura de evidencias y el diseño y elaboración manual del diagrama arquitectónico de la Figura~\ref{fig:arquitectura} en draw.io (diagrams.net) fueron realizados por el autor. Toda sugerencia de redacción, formato o referencia generada por la IA fue verificada manualmente: se contrastaron los valores técnicos de la Sección~\ref{sec:experimentacion} contra las salidas crudas (\texttt{06\_describe\_recuperado.txt}) y las Figuras~\ref{fig:capA}--\ref{fig:capC}. Además, cada DOI y enlace de \texttt{referencias.bib} fue verificado mediante consulta directa a los metadatos de Crossref y acceso web, para confirmar su vigencia y que autores, título, revista, volumen, páginas y año coinciden con la obra citada.
 
 % ============================================================
 % 12. REFERENCIAS (IEEE, biblatex)
