@@ -84,12 +84,12 @@
 % Componentes (brokers, tópicos, particiones, réplicas, productores,
 % consumidores, controladores KRaft) y cómo se comunican.
 
-% \begin{figure}[H]
-%   \centering
-%   \includegraphics[width=0.9\textwidth]{arquitectura.png}
-%   \caption{Arquitectura de Apache Kafka (elaboración propia).}
-%   \label{fig:arquitectura}
-% \end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{arquitectura.png}
+  \caption{Arquitectura del clúster Kafka usado en el experimento: tres brokers en modo KRaft, tópico \texttt{pedidos} con tres particiones y factor de replicación 3. El líder de cada partición se marca con una estrella ($\star$) (elaboración propia).}
+  \label{fig:arquitectura}
+\end{figure}
 % Evolución desde el esquema a mano: ver Anexo~\ref{anexo:a}.
 
 % ============================================================
@@ -113,7 +113,7 @@
 % ============================================================
 % 6. EXPERIMENTACIÓN PROPIA
 % ============================================================
-\section{Experimentación propia}
+\section{Experimentación propia}\label{sec:experimentacion}
 
 \subsection{Entorno y configuración}
 El experimento se montó en Windows con Docker Desktop v4.99.0 y la imagen oficial \texttt{apache/kafka:3.9.0}. Se configuró un clúster de tres nodos (\texttt{kafka1}, \texttt{kafka2} y \texttt{kafka3}) en modo KRaft, sin Apache ZooKeeper. Sobre ese clúster se creó el tópico \texttt{pedidos} con tres particiones y factor de replicación 3 (\texttt{replication.factor=3}). Se fijó un mínimo de 2 réplicas sincronizadas (\texttt{min.insync.replicas=2}) y el productor se configuró con confirmación total (\texttt{acks=all}). Con estos parámetros, cada escritura debe quedar confirmada en al menos dos réplicas antes de responder al cliente, así que la caída de un nodo no provoca pérdida de mensajes confirmados. Los comandos y archivos de configuración usados están en \texttt{experimento/comandos.md}.
@@ -128,7 +128,7 @@ El experimento se montó en Windows con Docker Desktop v4.99.0 y la imagen ofici
 \subsection{Prueba 1: caída del líder}
 Para probar el comportamiento ante la caída de un nodo, se detuvo el contenedor \texttt{kafka3}, que era el líder de la partición 0 en el estado inicial (Figura~\ref{fig:capA}). Tras la desconexión, el controlador KRaft promovió al broker 1 (\texttt{kafka1}) como nuevo líder de esa partición, y el conjunto de réplicas sincronizadas (ISR) bajó de 3 a 2 nodos en todas las particiones. Luego se publicó el mensaje \texttt{pedido-4}: la escritura se aceptó y el consumidor recuperó los 4 mensajes acumulados sin pérdida de información (Figura~\ref{fig:capB}).
 
-Con los conceptos de la Unidad 1, este resultado muestra tolerancia a fallos por replicación activa y reelección automática del líder. También muestra transparencia de ubicación y de fallos parcial: los clientes se conectaron a \texttt{kafka1} y siguieron operando sin intervención manual y sin saber qué broker tenía el liderazgo. La escritura de \texttt{pedido-4} no se bloqueó porque las 2 réplicas que quedaban en el ISR cumplían el mínimo de \texttt{min.insync.replicas=2}.
+Con los conceptos de la Unidad 1, este resultado muestra tolerancia a fallos por replicación activa y reelección automática del líder~\cite{Raptis2023,Maharjan2023}. También muestra transparencia de ubicación y de fallos parcial: los clientes se conectaron a \texttt{kafka1} y siguieron operando sin intervención manual y sin saber qué broker tenía el liderazgo. La escritura de \texttt{pedido-4} no se bloqueó porque las 2 réplicas que quedaban en el ISR cumplían el mínimo de \texttt{min.insync.replicas=2}.
 
 \begin{figure}[H]
   \centering
@@ -197,9 +197,18 @@ Por último, se reiniciaron los contenedores \texttt{kafka2} y \texttt{kafka3}. 
 % ============================================================
 % 11. DECLARACIÓN DE USO DE IA
 % ============================================================
-\section*{Declaración de uso de inteligencia artificial}
-\addcontentsline{toc}{section}{Declaración de uso de inteligencia artificial}
-% Herramienta, versión, para qué se usó y cómo se verificó; o declarar que no se usó.
+\section{Declaración de herramientas utilizadas}
+
+Para el desarrollo técnico, la gestión bibliográfica y la maquetación del presente informe se emplearon las siguientes herramientas de apoyo, manteniendo la autoría intelectual y el análisis crítico a cargo del estudiante:
+
+\begin{itemize}
+  \item \textbf{Claude (Anthropic, modelo Claude Opus 5.5, noviembre de 2026):} Utilizado como asistente técnico para estructurar el código fuente en LaTeX, reescribir la redacción de la Sección~\ref{sec:experimentacion} a partir de un borrador basado en mis apuntes experimentales, localizar fuentes bibliográficas recientes (\cite{Raptis2023,Raptis2024,Maharjan2023,Kaczor2022,Wang2022KRaft}) y formatear sus metadatos en \texttt{referencias.bib}.
+  \item \textbf{Docker Desktop (v4.99.0) y Apache Kafka (v3.9.0):} Empleados para el despliegue local del clúster de tres nodos en modo KRaft y la ejecución controlada de las pruebas de tolerancia a fallos y teorema CAP.
+  \item \textbf{draw.io (diagrams.net):} Utilizado por el estudiante para diseñar y elaborar manualmente el diagrama arquitectónico de la Figura~\ref{fig:arquitectura}, a partir de los datos de su propio experimento.
+  \item \textbf{TeX Live / Biber:} Utilizados para la compilación del documento fuente (\texttt{main.tex}) y la generación automatizada de referencias en formato IEEE.
+\end{itemize}
+
+\textbf{Autoría y método de verificación:} El diseño del experimento, el levantamiento de los contenedores, la ejecución de comandos, la captura de evidencias y el diseño y elaboración manual del diagrama arquitectónico de la Figura~\ref{fig:arquitectura} en draw.io (diagrams.net) fueron realizados por el autor. Toda sugerencia de redacción, formato o referencia generada por la IA fue verificada manualmente: se contrastaron los valores técnicos de la Sección~\ref{sec:experimentacion} contra las salidas crudas (\texttt{06\_describe\_recuperado.txt}) y las Figuras~\ref{fig:capA}--\ref{fig:capC}, y se validó cada DOI directamente en Crossref y en los portales de las revistas para confirmar la exactitud de autores, volúmenes y páginas.
 
 % ============================================================
 % 12. REFERENCIAS (IEEE, biblatex)
@@ -213,9 +222,34 @@ Por último, se reiniciaron los contenedores \texttt{kafka2} y \texttt{kafka3}. 
 \renewcommand{\thesection}{\Alph{section}}
 
 \section{Esquema inicial a mano}\label{anexo:a}
-% \includegraphics[width=0.8\textwidth]{esquema_mano.jpg}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.9\textwidth]{esquema_mano.jpg}
+  \caption{Esquema inicial a mano del clúster: productor, tres brokers con sus particiones P0, P1 y P2 (líder y réplicas), controladores KRaft y consumidor.}
+  \label{fig:esquema_mano}
+\end{figure}
 
 \section{Capturas de lectura de las fuentes}\label{anexo:b}
-% \includegraphics[width=0.9\textwidth]{fuentes/fuente1_p5.png}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{fuentes/fuente1_raptis.png}
+  \caption{Raptis y Passarella~\cite{Raptis2023}, p.~85336. Cada partición tiene un líder que atiende lecturas y escrituras, y las réplicas lo reemplazan si falla. Se usa en la Prueba~1 (Sección~\ref{sec:experimentacion}).}
+  \label{fig:fuente1}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.6\textwidth]{fuentes/fuente2_maharjan.png}
+  \caption{Maharjan et al.~\cite{Maharjan2023}, p.~301. Kafka guarda los registros de forma distribuida y tolerante a fallos, replicados en varios nodos. Se usa en la Prueba~1 (Sección~\ref{sec:experimentacion}).}
+  \label{fig:fuente2}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{fuentes/fuente3_kaminski.png}
+  \caption{Kamiński et al.~\cite{Kaminski2025}, p.~459. Hipótesis del estudio: RabbitMQ ofrece menor latencia en la entrega de mensajes individuales, sobre todo con poca carga.}
+  \label{fig:fuente3}
+\end{figure}
 
 \end{document}
