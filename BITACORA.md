@@ -63,3 +63,20 @@ busqué el artículo en Crossref y puse el DOI correcto (10.14778/2824032.282406
 
 - **Tiempo dedicado:**
 Aproximadamente 4 horas (primera captura a las 17:13; últimos cambios pasadas las 21:00)
+
+---
+
+## 2026-11-15 (domingo)
+
+- **Qué hice:**
+pegué en el README.md el enlace del video de sustentación (https://youtu.be/o0u45hrLPao), que grabé el sábado por la noche, y lo subí al repositorio;
+revisé que el repositorio quedara sin cambios pendientes y que el PDF compilado fuera la última versión.
+
+- **Problema encontrado:**
+el commit del enlace se llamaba "Agrego el enlace del video y la bitácora del domingo", pero solo incluía el README.md; la bitácora no tenía la entrada de este día.
+
+- **Cómo lo resolví:**
+agregué esta entrada a BITACORA.md y la subí en un commit aparte.
+
+- **Tiempo dedicado:**
+Aproximadamente 20 minutos
