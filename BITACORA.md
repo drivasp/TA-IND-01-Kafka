@@ -40,28 +40,26 @@ redacté la Sección 6 (Experimentación propia) con el entorno, las dos pruebas
 revisé que el informe coincida con las capturas A, B y C y con experimento/resultados/06_describe_recuperado.txt (la partición 0 volvió a tener como líder al broker 3);
 agregué la referencia Wang2015 a referencias.bib y la cité en la Prueba 2;
 compilé el PDF y verifiqué que la cita salga como [1] y no como [?];
-por la noche, con Claude, integré en el informe mis puntos técnicos para las Secciones 2, 3, 4, 5, 8, 9, 10 y 11, añadí las referencias oficiales de RabbitMQ, la documentación de diseño de Kafka y el post-mortem de PagerDuty, y actualicé comandos.md con los comandos que realmente ejecuté.
+por la noche, con Claude, integré en el informe mis puntos técnicos para las Secciones 2, 3, 4, 5, 8, 9, 10 y 11, añadí las referencias oficiales de RabbitMQ, la documentación de diseño de Kafka y el post-mortem de PagerDuty, y actualicé comandos.md con los comandos que realmente ejecuté;
+escribí la Sección 7 con dos ejemplos de mi entorno (SGA de la UTEQ y WhatsApp);
+volví a tomar las tres capturas de lectura (Raptis, Maharjan y Kamiński) marcando la frase completa;
+con Claude revisé en Crossref los DOIs de las referencias y corregí el de Wang2015, que llevaba a otro artículo;
+completé la Introducción (quién usa Kafka, a qué escala y por qué lo elegí) y agregué al informe las capturas 1, 2 y 4 del clúster;
+subí los cambios al repositorio en varios commits separados por tema.
 
 - **Problema encontrado:**
 al principio guardé los cambios en una copia sin Git (carpeta "Tarea individual de Gleisston1") y no en el repositorio;
 mi equipo no tiene biber, así que la bibliografía no compilaba localmente;
 06_describe_recuperado.txt aparecía modificado solo por los saltos de línea de Windows;
-en las Pruebas 1 y 2 abrí PowerShell como administrador en C:\Windows\system32, así que Out-File no encontró la carpeta resultados y no se guardaron 04 y 05.
+en las Pruebas 1 y 2 abrí PowerShell como administrador en C:\Windows\system32, así que Out-File no encontró la carpeta resultados y no se guardaron 04 y 05;
+el DOI que tenía para Wang2015 abría otro artículo de la misma revista.
 
 - **Cómo lo resolví:**
 pasé la Sección 6 y la referencia al repositorio real (Documentos\TA-IND-01-Kafka) y borré la copia;
 compilé el informe en otro entorno con biber;
 descarté el cambio de salto de línea con git restore;
-transcribí las salidas de 04 y 05 desde las capturas B y C y lo indiqué en cada archivo.
+transcribí las salidas de 04 y 05 desde las capturas B y C y lo indiqué en cada archivo;
+busqué el artículo en Crossref y puse el DOI correcto (10.14778/2824032.2824063).
 
 - **Tiempo dedicado:**
-Aproximadamente 3 horas y media (primera captura a las 17:13; últimos cambios pasadas las 20:30)
-
----
-
-## 2026-11-15 (domingo)
-
-- **Qué hice:**
-- **Problema encontrado:**
-- **Cómo lo resolví:**
-- **Tiempo dedicado:**
+Aproximadamente 4 horas (primera captura a las 17:13; últimos cambios pasadas las 21:00)
