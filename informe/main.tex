@@ -64,9 +64,8 @@
 % 2. RESUMEN (150 a 200 palabras)
 % ============================================================
 \begin{abstract}
-% Sistema analizado, enfoque y conclusiones principales.
+Las arquitecturas orientadas a eventos y la transmisión de datos en tiempo real han desplazado a la mensajería tradicional en muchos escenarios, y Apache Kafka se ha convertido en una de sus plataformas de referencia frente a brokers de colas como RabbitMQ. Este informe analiza Kafka con los conceptos de la Unidad~1 (transparencias, modelos de comunicación, tolerancia a fallos, replicación y los modelos CAP y PACELC) a partir de un experimento propio: un clúster de tres nodos en modo KRaft desplegado con Docker, con el tópico \texttt{pedidos} replicado tres veces, \texttt{acks=all} y \texttt{min.insync.replicas=2}. Al detener el líder de una partición, el clúster eligió un nuevo líder, el conjunto de réplicas sincronizadas bajó de 3 a 2 y las escrituras continuaron sin pérdida de mensajes; con solo uno de los tres nodos activos, el productor recibió \texttt{NOT\_ENOUGH\_REPLICAS} y la escritura fue rechazada, un comportamiento CP que antepone la durabilidad a la disponibilidad. Se concluye que Kafka conviene para la ingesta masiva y el reprocesamiento histórico de eventos, mientras que RabbitMQ resulta más adecuado para colas de tareas con enrutamiento fino y baja latencia por mensaje.
 \end{abstract}
-
 \newpage
 \tableofcontents
 \newpage
@@ -74,15 +73,18 @@
 % ============================================================
 % 3. INTRODUCCIÓN
 % ============================================================
-\section{Introducción}
-% Qué problema resuelve Kafka, quién lo usa, a qué escala y por qué se eligió.
+\section{Introducción}\label{sec:introduccion}
+En los últimos años, muchas organizaciones han pasado de integrar sus sistemas mediante llamadas directas o mensajería tradicional a arquitecturas orientadas a eventos, en las que los servicios publican hechos que otros sistemas consumen en tiempo real. Los sistemas de mensajería clásicos se basan en colas transitorias: el mensaje desaparece una vez entregado, por lo que no están pensados para retener grandes volúmenes de eventos ni para que varios consumidores los relean de forma independiente. Apache Kafka nació en LinkedIn para cubrir esa necesidad con un registro (\textit{log}) distribuido, particionado y replicado~\cite{Wang2015}, y hoy es una pieza habitual en las plataformas de transmisión de datos~\cite{Raptis2023}.
+
+El objetivo de este informe es analizar los principios de los sistemas distribuidos vistos en la Unidad~1 (transparencia, tolerancia a fallos, replicación y los modelos CAP y PACELC) mediante la implementación experimental de un clúster de Apache Kafka en modo KRaft, y comparar su arquitectura con la de RabbitMQ.
+
+El informe se organiza así: la Sección~\ref{sec:arquitectura} describe la arquitectura del clúster; la Sección~\ref{sec:unidad1} la analiza con los conceptos de la Unidad~1; la Sección~\ref{sec:experimentacion} presenta el experimento; la Sección~\ref{sec:entorno} recoge ejemplos del entorno del estudiante; la Sección~\ref{sec:comparativo} compara Kafka con RabbitMQ; y las Secciones~\ref{sec:postura} y~\ref{sec:conclusiones} presentan la postura crítica y las conclusiones.
 
 % ============================================================
 % 4. ARQUITECTURA DEL SISTEMA
 % ============================================================
-\section{Arquitectura del sistema}
-% Componentes (brokers, tópicos, particiones, réplicas, productores,
-% consumidores, controladores KRaft) y cómo se comunican.
+\section{Arquitectura del sistema}\label{sec:arquitectura}
+La Figura~\ref{fig:arquitectura} (elaboración propia) muestra el clúster montado para el experimento. Consta de tres nodos, cada uno en un contenedor Docker (\texttt{kafka1}, \texttt{kafka2} y \texttt{kafka3}), configurados en modo combinado (\texttt{KAFKA\_PROCESS\_ROLES="broker,controller"}): cada nodo actúa a la vez como \textit{broker}, que almacena las particiones y atiende a los clientes, y como controlador, que gestiona los metadatos del clúster. Los controladores se coordinan con el protocolo de consenso KRaft, que guarda los metadatos en un log replicado mediante Raft y elimina la dependencia de Apache ZooKeeper~\cite{Wang2022KRaft}. Como consta en \texttt{01\_quorum.txt}, los tres nodos participan como votantes activos del quórum (\texttt{CurrentVoters} = 1, 2 y 3), con el nodo~1 como líder del quórum en el momento de la consulta.
 
 \begin{figure}[H]
   \centering
@@ -90,25 +92,41 @@
   \caption{Arquitectura del clúster Kafka usado en el experimento: tres brokers en modo KRaft, tópico \texttt{pedidos} con tres particiones y factor de replicación 3. El líder de cada partición se marca con una estrella ($\star$) (elaboración propia).}
   \label{fig:arquitectura}
 \end{figure}
-% Evolución desde el esquema a mano: ver Anexo~\ref{anexo:a}.
+
+Sobre el clúster se creó el tópico \texttt{pedidos} con tres particiones y factor de replicación~3. Cada partición tiene una réplica líder, que atiende las lecturas y escrituras, y dos réplicas seguidoras que copian su log; las réplicas que están al día forman el conjunto de réplicas sincronizadas (ISR, \textit{in-sync replicas})~\cite{Wang2015}. En el estado inicial, el liderazgo quedó repartido entre los tres brokers: la partición~0 en el broker~3, la partición~1 en el broker~1 y la partición~2 en el broker~2 (\texttt{02\_describe\_inicial.txt}). Los productores escriben en el líder de cada partición con \texttt{acks=all}, de modo que la escritura solo se confirma cuando la han recibido las réplicas del ISR. Los consumidores, en cambio, piden los mensajes al broker (modelo \textit{pull}) e indican desde qué desplazamiento (\textit{offset}) quieren leer. La evolución desde el primer esquema hecho a mano puede verse en el Anexo~\ref{anexo:a}.
 
 % ============================================================
 % 5. ANÁLISIS CON LOS CONCEPTOS DE LA UNIDAD 1
 % ============================================================
-\section{Análisis con los conceptos de la Unidad 1}
+\section{Análisis con los conceptos de la Unidad 1}\label{sec:unidad1}
 
 \subsection{Transparencias de distribución}
-% Acceso, ubicación, migración, reubicación, replicación, concurrencia y fallos.
-% Cuáles ofrece y cuáles no, y por qué.
+Kafka ofrece \textbf{transparencia de acceso y de ubicación}. Los clientes trabajan con el tópico lógico \texttt{pedidos} mediante la misma API, sin conocer la dirección IP ni el contenedor físico donde está el líder de cada partición: solo necesitan una lista inicial de brokers (\texttt{bootstrap.servers}), y los metadatos del clúster les indican a qué broker dirigir cada petición~\cite{Raptis2023}.
+
+La \textbf{transparencia de migración y de reubicación} también se cumple, aunque la operación en sí no es automática. Mover particiones a otro broker es una tarea administrativa que se lanza con la herramienta \texttt{kafka-reassign-partitions}. Mientras dura la reasignación, los clientes no cambian su configuración ni su código: cuando el líder de una partición cambia de broker, el cliente recibe un error de líder obsoleto, vuelve a pedir los metadatos y redirige sus peticiones al nuevo líder sin intervención del usuario.
+
+También ofrece \textbf{transparencia de replicación} y, de forma \textbf{parcial, de fallos}. Las tres copias de cada partición son invisibles para el cliente, y ante la caída de \texttt{kafka3} en la Prueba~1 el clúster promovió a \texttt{kafka1} como líder de la partición~0 sin detener el servicio (Sección~\ref{sec:experimentacion}). La transparencia de fallos tiene, sin embargo, un límite: en la Prueba~2, con dos nodos caídos, el fallo llegó al cliente en forma de error de escritura.
+
+En cambio, Kafka \textbf{no ofrece transparencia total de concurrencia ni de particionamiento} al desarrollador. El orden estricto de los mensajes solo se garantiza dentro de una misma partición y no a nivel global del tópico~\cite{KafkaDesign39}; por eso, si ciertos mensajes deben procesarse en orden (por ejemplo, los eventos de un mismo pedido), el desarrollador tiene que elegir una clave que los envíe a la misma partición.
 
 \subsection{Teorema CAP y PACELC}
-% Qué prioriza con partición y qué prioriza sin partición. Con evidencia citada.
+Ante una partición de red o la pérdida de nodos, Kafka se comportó, con la configuración del experimento, como un sistema \textbf{CP}. En la Prueba~2, con solo 1 de los 3 nodos activos y \texttt{min.insync.replicas=2}, el productor recibió el error \texttt{NOT\_ENOUGH\_REPLICAS} (\texttt{05\_escritura\_rechazada.txt}): el clúster sacrificó la disponibilidad de escritura para preservar la consistencia y la durabilidad de los mensajes ya confirmados. El rechazo se debió a que el ISR quedó por debajo del mínimo exigido; además, con un solo votante activo, el quórum KRaft también perdió la mayoría. Refuerza este comportamiento que la elección de líder ``no limpia'' (\texttt{unclean.leader.election.enable}) está desactivada por defecto, lo que impide elegir como líder a una réplica desactualizada~\cite{KafkaDesign39}.
+
+En ausencia de particiones (la rama \textit{Else} de PACELC), la clasificación de Kafka requiere un matiz. Su almacenamiento está optimizado para la latencia y el rendimiento: escribe los mensajes de forma secuencial en un log en disco, apoyándose en la caché de páginas del sistema operativo, y agrupa los mensajes en lotes para amortizar el costo de cada viaje por la red~\cite{KafkaDesign39}. Sin embargo, desde Kafka~3.0 el productor usa por defecto \texttt{acks=all} (junto con \texttt{enable.idempotence=true})~\cite{KAFKA10619}, de modo que cada escritura espera la confirmación de las réplicas del ISR. Por tanto, la configuración por defecto, que es también la usada en el experimento, ya favorece la consistencia sobre la latencia (\textbf{EC}). Solo si se reduce a \texttt{acks=1}, el productor espera únicamente al líder y el sistema se acerca a un perfil PA/EL.
 
 \subsection{Modelos de comunicación}
-% Cliente-servidor, P2P o híbrido; síncrona o asíncrona; sockets, RPC o mensajería.
+Kafka sigue el paradigma de un \textbf{registro de confirmación distribuido} (\textit{commit log}): los mensajes se añaden al final de un log persistente e inmutable y no se borran al ser leídos, sino cuando vence el período de retención configurado~\cite{Wang2015,KafkaDesign39}. Esto lo distingue de las colas transitorias de la mensajería tradicional, en las que el mensaje desaparece tras entregarse.
+
+En cuanto a la arquitectura, Kafka es un sistema \textbf{híbrido}. La relación entre los clientes (productores y consumidores) y los brokers es \textbf{cliente-servidor}: los clientes abren conexiones con los brokers y les envían peticiones. Entre los brokers, en cambio, la relación se parece más a la de pares: los seguidores copian el log del líder de cada partición y los controladores eligen un líder del quórum mediante Raft, sin un servidor central fijo. En cuanto al mecanismo, la comunicación entre clientes y brokers usa un \textbf{protocolo binario propio sobre TCP} (sockets), no RPC; para las aplicaciones, en cambio, el modelo es de \textbf{mensajería}, porque productores y consumidores nunca se comunican directamente, sino a través de los tópicos.
+
+La comunicación es indirecta y asíncrona, bajo el modelo publicar/suscribir. Los productores escriben en un tópico sin conocer a los consumidores (\textbf{desacoplamiento espacial}), y los consumidores pueden leer más tarde, aunque el productor ya no esté activo (\textbf{desacoplamiento temporal})~\cite{Raptis2023}. Los consumidores se organizan en \textbf{grupos} que se reparten las particiones del tópico, y cada uno sigue un \textbf{modelo pull}: pide los mensajes al broker al ritmo al que puede procesarlos y controla su propio offset, lo que además le permite volver a leer eventos anteriores~\cite{KafkaDesign39}.
 
 \subsection{Tolerancia a fallos}
-% Qué fallos soporta, cómo los detecta y cómo se recupera. Incidente real documentado.
+Kafka tolera fallos mediante \textbf{replicación activa basada en líder y seguidores}. Cada partición tiene una réplica líder que atiende las escrituras y réplicas seguidoras que copian su log. Las réplicas al día forman el conjunto dinámico ISR: un seguidor sale de él si se atrasa más allá de \texttt{replica.lag.time.max.ms} y vuelve a entrar cuando se pone al día~\cite{Wang2015,KafkaDesign39}. Si un broker deja de enviar latidos (\textit{heartbeats}) al controlador, este lo da por caído y elige un nuevo líder entre las réplicas del ISR, como ocurrió en la Prueba~1 al detener \texttt{kafka3}. Con factor de replicación~3 y \texttt{min.insync.replicas=2}, el clúster soporta la caída de un broker sin dejar de aceptar escrituras; con dos caídas conserva los datos confirmados, pero deja de escribir (Prueba~2).
+
+Tras la recuperación, la partición~0 volvió a tener como líder al broker~3, su \textbf{líder preferido} (el primero de su lista de réplicas), como muestra \texttt{06\_describe\_recuperado.txt}. Este retorno equilibra la carga del clúster: mientras \texttt{kafka3} estuvo caído, \texttt{kafka1} lideraba las particiones~0 y~1 y concentraba sus escrituras y lecturas (\texttt{04\_describe\_sin\_lider.txt}); al devolver el liderazgo al broker preferido, cada uno de los tres brokers vuelve a liderar una partición.
+
+\paragraph{Incidente real documentado.} PagerDuty publicó el análisis de dos caídas de su clúster de Kafka ocurridas el 28 de agosto de 2025~\cite{PagerDuty2025}. Una nueva función de auditoría del uso de claves de API, activada de forma gradual, creaba un productor de Kafka nuevo por cada petición en lugar de reutilizar uno compartido, hasta llegar a unos 4,2 millones de productores adicionales por hora en el pico. Mantener el registro de todos esos productores agotó la memoria \textit{heap} de la JVM de los brokers: el fallo empezó en un broker, se extendió al resto del clúster y afectó a clientes de las regiones de Estados Unidos con errores en la API y notificaciones retrasadas durante varias horas (el primer incidente duró de 03:53 a 10:10~UTC). Se mitigó ampliando la capacidad, duplicando el heap y reiniciando los brokers de forma escalonada, y se resolvió al dejar de publicar mensajes desde la función que lo provocaba. El caso muestra que la replicación protege frente a la caída de un nodo, pero no frente a una causa común que afecta a todos los brokers a la vez.
 
 % ============================================================
 % 6. EXPERIMENTACIÓN PROPIA
@@ -155,60 +173,86 @@ Por último, se reiniciaron los contenedores \texttt{kafka2} y \texttt{kafka3}. 
 % ============================================================
 % 7. EJEMPLOS DEL ENTORNO DEL ESTUDIANTE
 % ============================================================
-\section{Ejemplos del entorno del estudiante}
-% Al menos dos sistemas reales usados de primera mano, relacionados con un concepto.
+\section{Ejemplos del entorno del estudiante}\label{sec:entorno}
+
+\subsection{Ejemplo 1: Sistema de Gestión Académica (SGA) de la UTEQ}
+El Sistema de Gestión Académica (SGA) de la Universidad Técnica Estatal de Quevedo es la plataforma web que uso para revisar mis calificaciones, descargar tareas y matricularme en cada semestre. Durante las matrículas de quinto semestre, intenté registrar mis materias apenas se habilitó el sistema, pero la página se quedaba cargando mucho tiempo y me arrojaba errores de conexión o tiempo de espera agotado. Tuve que esperar hasta más tarde, cuando había menos estudiantes conectados, para poder completar la inscripción.
+
+Lo que observé se relaciona con la disponibilidad y la tolerancia a fallos. Aunque no tengo acceso a la infraestructura interna del servidor de la universidad, ese comportamiento sugiere que el sistema concentraba muchas peticiones concurrentes sobre un recurso limitado o sin suficientes servidores o réplicas para absorber el pico de demanda. A diferencia de lo que comprobé en mi experimento con Kafka (donde el clúster repartió el liderazgo de las particiones entre los tres brokers y siguió aceptando escrituras después de detener \texttt{kafka3}), cuando un sistema depende de un punto que se satura ante alta concurrencia, su disponibilidad cae para todos los usuarios.
+
+\subsection{Ejemplo 2: Mensajería instantánea en WhatsApp}
+WhatsApp es la aplicación que uso todos los días en mi celular y en la computadora para coordinar trabajos grupales de la universidad y hablar con mi familia. Hace unas semanas le envié un mensaje y un archivo a mi tío, y noté que el mensaje se quedó marcado con un solo visto gris durante varios minutos antes de cambiar al doble visto gris cuando finalmente le llegó a su teléfono.
+
+Ese comportamiento muestra cómo funciona la comunicación asíncrona mediante almacenamiento y reenvío. Un solo visto significa que mi mensaje ya había llegado a los servidores de WhatsApp, pero como el teléfono de mi tío estaba sin señal o desconectado, el servidor lo guardó en espera y lo reenvió más tarde cuando recuperó conexión, actuando de forma similar a un broker. Si se compara con la Prueba 2 de mi experimento en Kafka (donde el productor rechazó al instante el mensaje \texttt{pedido-5} con \texttt{NOT\_ENOUGH\_REPLICAS} al quedarse sin quórum), WhatsApp prioriza aceptar el mensaje del cliente y diferir su entrega final al destinatario, comportándose más cerca de un enfoque AP frente a la exigencia de consistencia inmediata de Kafka.
 
 % ============================================================
 % 8. ANÁLISIS COMPARATIVO
 % ============================================================
-\section{Análisis comparativo}
+\section{Análisis comparativo}\label{sec:comparativo}
+
+La Tabla~\ref{tab:comparacion} contrasta ambos sistemas con los criterios de la Unidad~1. La descripción de RabbitMQ se basa en su documentación oficial~\cite{RabbitMQQuorum,RabbitMQ2021Deprecation} y en los estudios comparativos~\cite{Kaczor2022,Maharjan2023,Kaminski2025,Ramadan2026}.
 
 \begin{table}[H]
   \centering
+  \small
   \caption{Comparación entre Apache Kafka y RabbitMQ}
   \label{tab:comparacion}
-  \begin{tabularx}{\textwidth}{@{}lXX@{}}
+  \renewcommand{\arraystretch}{1.25}
+  \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
     \toprule
     \textbf{Criterio} & \textbf{Apache Kafka} & \textbf{RabbitMQ} \\
     \midrule
-    Transparencias &  &  \\
-    CAP (con partición) &  &  \\
-    PACELC (sin partición) &  &  \\
-    Modelo de comunicación &  &  \\
-    Replicación &  &  \\
-    Detección y recuperación de fallos &  &  \\
+    Modelo de datos & Log distribuido, particionado y persistente. & Broker de colas; los mensajes llegan a las colas mediante \textit{exchanges} que los enrutan. \\
+    Modelo de comunicación y consumo & Publicar/suscribir con modelo \textit{pull} basado en offsets; retención configurable que permite releer. & Modelo \textit{push} hacia el consumidor; el mensaje se elimina tras la confirmación (ACK), salvo en \textit{streams}. \\
+    Replicación y consenso & Por partición, con líder e ISR; metadatos replicados con consenso KRaft. & \textit{Quorum queues} basadas en consenso Raft; el \textit{Classic Queue Mirroring}, declarado obsoleto en 2021, se eliminó en RabbitMQ~4.0. \\
+    Transparencias & Acceso, ubicación y replicación; fallos parcial; orden solo dentro de cada partición. & El cliente se conecta a cualquier nodo y el clúster lo dirige a la cola; transparencia de fallos según el tipo de cola. \\
+    CAP (con partición) & CP con \texttt{acks=all} y \texttt{min.insync.replicas=2}: rechaza escrituras sin réplicas suficientes. & CP con \textit{quorum queues}: sin mayoría de miembros, la cola deja de funcionar. \\
+    PACELC (sin partición) & EL por diseño (escritura secuencial y lotes); EC con \texttt{acks=all}. & EC con \textit{quorum queues}: la escritura se confirma tras replicarse en la mayoría. \\
+    Detección y recuperación de fallos & Latidos al controlador KRaft; nuevo líder elegido desde el ISR. & Raft elige un nuevo líder de la cola; los mensajes sin ACK se reentregan. \\
+    Rendimiento y casos de uso & Alto \textit{throughput} para \textit{streaming} y analítica en tiempo real. & Baja latencia por mensaje y enrutamiento complejo en microservicios transaccionales. \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
-% Discusión de la tabla.
+La diferencia que más pesa es el modelo de datos y de consumo. En Kafka el mensaje sigue en el log después de leerse, y cada grupo de consumidores avanza a su propio ritmo; en RabbitMQ el mensaje es un trabajo que se entrega y se elimina tras el ACK. De esa decisión se derivan los casos de uso de cada uno: Kafka resulta natural cuando varios sistemas deben procesar el mismo flujo de eventos o reprocesarlo más tarde, y RabbitMQ cuando cada mensaje es una tarea que debe llegar a un único destinatario según reglas de enrutamiento.
+
+En replicación y consenso, en cambio, ambos sistemas han convergido. Desde que RabbitMQ eliminó el \textit{mirroring} clásico, sus colas replicadas usan Raft, igual que los metadatos de Kafka en modo KRaft, y los dos se comportan como sistemas CP cuando pierden la mayoría.
 
 % ============================================================
 % 9. POSTURA CRÍTICA
 % ============================================================
-\section{Postura crítica}
-% Fortalezas, limitaciones, trade-offs y contextos en los que no sería la mejor opción.
+\section{Postura crítica}\label{sec:postura}
+Kafka es la mejor opción cuando el sistema necesita ingerir grandes volúmenes de eventos y conservarlos para reprocesarlos: analítica en tiempo real, auditoría o varios sistemas alimentados por el mismo flujo. Su log persistente permite que un consumidor nuevo, o uno al que se le corrigió un error, vuelva a leer el historial desde cualquier offset, algo que una cola tradicional no permite porque el mensaje desaparece tras el ACK~\cite{Maharjan2023,Ramadan2026}.
+
+RabbitMQ encaja mejor en colas de tareas con enrutamiento fino entre microservicios, donde cada mensaje es un trabajo que se procesa una sola vez y lo que importa es la latencia por mensaje y la flexibilidad de los \textit{exchanges}~\cite{Kaminski2025}. En ese escenario, la complejidad operativa de Kafka (particiones, ISR, retención y elección de claves para mantener el orden) no se justifica.
+
+El experimento tiene una limitación que conviene reconocer: todo el clúster se ejecutó en una sola máquina mediante Docker. Por eso no se simularon latencias de red WAN ni particiones asimétricas reales (\textit{split-brain} de red); los fallos se provocaron deteniendo contenedores completos. Los resultados sobre CAP describen, por tanto, el comportamiento ante la caída de nodos y no ante una partición de red propiamente dicha.
 
 % ============================================================
 % 10. CONCLUSIONES
 % ============================================================
-\section{Conclusiones}
+\section{Conclusiones}\label{sec:conclusiones}
+El experimento demostró empíricamente el compromiso entre durabilidad y disponibilidad que fija la combinación \texttt{acks=all} con \texttt{min.insync.replicas=2}. Con un broker caído, el clúster eligió un nuevo líder, el ISR bajó de 3 a 2 réplicas y siguió aceptando escrituras sin perder mensajes; con solo uno de los tres nodos activos, rechazó la escritura con \texttt{NOT\_ENOUGH\_REPLICAS} en lugar de confirmar un dato guardado en una sola copia. En términos de CAP, Kafka se comportó como un sistema CP; en términos de PACELC, su diseño favorece la latencia cuando no hay fallos, pero la configuración elegida lo desplaza hacia la consistencia.
+
+El despliegue en modo KRaft dejó también un aprendizaje sobre consenso: sin ZooKeeper, los tres nodos mantuvieron los metadatos del clúster mediante su propio quórum Raft, con los tres como votantes, lo que reduce el despliegue a un solo tipo de proceso. La elección entre Kafka y RabbitMQ depende, sobre todo, del modelo de datos: un log persistente para la ingesta masiva y el reprocesamiento, o colas con enrutamiento fino para tareas transaccionales. Como trabajo futuro queda simular particiones de red reales entre máquinas distintas y medir la latencia con \texttt{acks=1} frente a \texttt{acks=all}.
 
 % ============================================================
 % 11. DECLARACIÓN DE USO DE IA
 % ============================================================
-\section{Declaración de herramientas utilizadas}
+\section{Declaración de uso de inteligencia artificial}
 
 Para el desarrollo técnico, la gestión bibliográfica y la maquetación del presente informe se emplearon las siguientes herramientas de apoyo, manteniendo la autoría intelectual y el análisis crítico a cargo del estudiante:
 
 \begin{itemize}
-  \item \textbf{Claude (Anthropic, modelo Claude Opus 5.5, noviembre de 2026):} Utilizado como asistente técnico para estructurar el código fuente en LaTeX, reescribir la redacción de la Sección~\ref{sec:experimentacion} a partir de un borrador basado en mis apuntes experimentales, localizar fuentes bibliográficas recientes (\cite{Raptis2023,Raptis2024,Maharjan2023,Kaczor2022,Wang2022KRaft}) y formatear sus metadatos en \texttt{referencias.bib}.
+  \item \textbf{Claude (Anthropic, modelo Claude Opus 5.5, noviembre de 2026):} En las Secciones~\ref{sec:introduccion}, \ref{sec:arquitectura}, \ref{sec:unidad1}, \ref{sec:comparativo}, \ref{sec:postura} y~\ref{sec:conclusiones}, el estudiante aportó los puntos técnicos y el análisis de cada sección, y Claude los estructuró en LaTeX con sus respectivas citas de \texttt{referencias.bib}, redactando la prosa a partir de esos puntos. El Resumen fue redactado por Claude a partir del contenido ya integrado, siguiendo la estructura indicada por el estudiante. Claude también se usó para reescribir la redacción de la Sección~\ref{sec:experimentacion} a partir de un borrador basado en los apuntes experimentales del estudiante, localizar fuentes bibliográficas (\cite{Raptis2023,Raptis2024,Maharjan2023,Kaczor2022,Wang2022KRaft}), la documentación oficial de Kafka y RabbitMQ (\cite{KafkaDesign39,RabbitMQ2021Deprecation,RabbitMQQuorum}) y el informe del incidente de PagerDuty~\cite{PagerDuty2025}, y formatear sus metadatos en \texttt{referencias.bib}. Además, Claude generó la estructura inicial del repositorio, el archivo \texttt{experimento/docker-compose.yml}, la guía de comandos \texttt{experimento/comandos.md} (que luego se actualizó con los comandos realmente ejecutados) y la plantilla de la carátula, y ayudó a redactar las entradas de \texttt{BITACORA.md} a partir de lo que el estudiante hizo cada día.
+% PENDIENTE: si se usó un humanizador de texto, agregar aquí un \item con su nombre y en qué secciones se aplicó.
   \item \textbf{Docker Desktop (v4.99.0) y Apache Kafka (v3.9.0):} Empleados para el despliegue local del clúster de tres nodos en modo KRaft y la ejecución controlada de las pruebas de tolerancia a fallos y teorema CAP.
   \item \textbf{draw.io (diagrams.net):} Utilizado por el estudiante para diseñar y elaborar manualmente el diagrama arquitectónico de la Figura~\ref{fig:arquitectura}, a partir de los datos de su propio experimento.
   \item \textbf{TeX Live / Biber:} Utilizados para la compilación del documento fuente (\texttt{main.tex}) y la generación automatizada de referencias en formato IEEE.
 \end{itemize}
 
-\textbf{Autoría y método de verificación:} El diseño del experimento, el levantamiento de los contenedores, la ejecución de comandos, la captura de evidencias y el diseño y elaboración manual del diagrama arquitectónico de la Figura~\ref{fig:arquitectura} en draw.io (diagrams.net) fueron realizados por el autor. Toda sugerencia de redacción, formato o referencia generada por la IA fue verificada manualmente: se contrastaron los valores técnicos de la Sección~\ref{sec:experimentacion} contra las salidas crudas (\texttt{06\_describe\_recuperado.txt}) y las Figuras~\ref{fig:capA}--\ref{fig:capC}, y se validó cada DOI directamente en Crossref y en los portales de las revistas para confirmar la exactitud de autores, volúmenes y páginas.
+\textbf{Autoría y método de verificación:} El levantamiento de los contenedores, la ejecución de los comandos del experimento, la captura de evidencias y el diseño y elaboración manual del diagrama arquitectónico de la Figura~\ref{fig:arquitectura} en draw.io (diagrams.net) fueron realizados por el autor. Toda sugerencia de redacción, formato o referencia generada por la IA fue verificada manualmente: se contrastaron los valores técnicos de la Sección~\ref{sec:experimentacion} contra las salidas crudas (\texttt{06\_describe\_recuperado.txt}) y las Figuras~\ref{fig:capA}--\ref{fig:capC}.
+% PENDIENTE: cuando abras cada DOI en Crossref, añade aquí: "y se validó cada DOI directamente en Crossref y en los portales de las revistas para confirmar la exactitud de autores, volúmenes y páginas".
 
 % ============================================================
 % 12. REFERENCIAS (IEEE, biblatex)
@@ -240,7 +284,7 @@ Para el desarrollo técnico, la gestión bibliográfica y la maquetación del pr
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.6\textwidth]{fuentes/fuente2_maharjan.png}
+  \includegraphics[width=0.95\textwidth]{fuentes/fuente2_maharjan.png}
   \caption{Maharjan et al.~\cite{Maharjan2023}, p.~301. Kafka guarda los registros de forma distribuida y tolerante a fallos, replicados en varios nodos. Se usa en la Prueba~1 (Sección~\ref{sec:experimentacion}).}
   \label{fig:fuente2}
 \end{figure}
