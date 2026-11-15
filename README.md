@@ -8,7 +8,7 @@
 
 ## Video de sustentación
 
-🎥 **Enlace:** _PEGAR AQUÍ el enlace de YouTube (no listado) o Google Drive (acceso abierto)_
+🎥 **Enlace:** https://youtu.be/o0u45hrLPao
 
 ## Estructura del repositorio
 
@@ -20,9 +20,10 @@
 │   ├── main.tex            # Archivo principal del informe
 │   ├── referencias.bib     # Bibliografía (biblatex, estilo IEEE)
 │   ├── main.pdf            # PDF compilado
-│   ├── figuras/            # Diagrama de arquitectura (draw.io o TikZ)
+│   ├── figuras/            # Diagrama de arquitectura (draw.io: .png y .drawio) y logo
 │   ├── capturas/sistema/   # Capturas de la ejecución de Kafka
 │   ├── capturas/fuentes/   # Capturas de los artículos subrayados (Anexo B)
+│   ├── capturas/instalacion/ # Capturas de los problemas de instalación (WSL/Docker)
 │   └── anexos/             # Foto del esquema a mano (Anexo A)
 └── experimento/
     ├── docker-compose.yml  # Clúster Kafka de 3 brokers (KRaft)
